@@ -3301,28 +3301,51 @@ async def captcha_protection(client: Client, message: Message):
     else:
         await message.edit_text("Usage: .captcha [on/off]")
 
-@app.on_message(filters.command("welcome", prefixes=".") & filters.me)
-async def set_welcome_message(client: Client, message: Message):
-    if len(message.command) < 3:
-        return await message.edit_text("Usage: .welcome [on/off] [message]")
-    
+
+private_welcome_enabled = False
+private_welcome_message = "Welcome! How can I assist you today?"
+private_welcomed_users = set()
+
+@app.on_message(filters.command("welcome", prefixes=".") & filters.me & filters.private)
+async def private_welcome_toggle(client: Client, message: Message):
+    global private_welcome_enabled, private_welcome_message
+
+    if len(message.command) < 2:
+        return await message.edit_text("Usage: `.welcome [on/off] [custom message (optional)]`")
+
     mode = message.command[1].lower()
-    welcome_msg = " ".join(message.command[2:])
-    
-    if message.chat.id not in group_settings:
-        group_settings[message.chat.id] = {}
-    
+
     if mode == "on":
-        group_settings[message.chat.id]["welcome"] = welcome_msg
-        group_settings[message.chat.id]["welcome_enabled"] = True
-        await message.edit_text("**Welcome message enabled!**")
+        private_welcome_enabled = True
+        if len(message.command) > 2:
+            private_welcome_message = " ".join(message.command[2:])
+        else:
+            private_welcome_message = "Welcome! How can I assist you today?"
+        await message.edit_text(f"**Welcome message enabled for DMs!**\nMessage:\n{private_welcome_message}")
+
     elif mode == "off":
-        group_settings[message.chat.id]["welcome_enabled"] = False
-        await message.edit_text("**Welcome message disabled!**")
+        private_welcome_enabled = False
+        await message.edit_text("**Welcome message disabled for DMs!**")
+
     else:
-        await message.edit_text("Usage: .welcome [on/off] [message]")
-    
-    save_data()
+        await message.edit_text("Invalid option! Use `on` or `off`.")
+        save_data()
+
+@app.on_message(filters.private & filters.text & ~filters.me)
+async def private_dm_welcome(client: Client, message: Message):
+    global private_welcome_enabled, private_welcome_message, private_welcomed_users
+
+    if not private_welcome_enabled:
+        return
+
+    user_id = message.from_user.id
+    if user_id not in private_welcomed_users:
+        try:
+            await message.reply_text(private_welcome_message)
+            private_welcomed_users.add(user_id)
+        except Exception:
+            pass  # ignore failures
+            
 
 @app.on_message(filters.command("goodbye", prefixes=".") & filters.me)
 async def set_goodbye_message(client: Client, message: Message):
