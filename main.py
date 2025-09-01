@@ -3424,7 +3424,7 @@ async def set_goodbye_message(client: Client, message: Message):
         group_settings[message.chat.id]["goodbye"] = goodbye_msg
         group_settings[message.chat.id]["goodbye_enabled"] = True
     await message.edit_text("**Goodbye message enabled!**")
-    elif mode == "off":
+    if mode == "off":
         group_settings[message.chat.id]["goodbye_enabled"] = False
         await message.edit_text("**Goodbye message disabled!**")
     else:
