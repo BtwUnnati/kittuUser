@@ -3330,9 +3330,10 @@ async def private_welcome_toggle(client: Client, message: Message):
 @app.on_message(filters.private & filters.text & ~filters.me)
 async def private_dm_welcome(client: Client, message: Message):
     global private_we
+####
 
-##
 pm_unapproved_count = {}  # user_id: count
+
 if 'approved_users' not in globals():
     approved_users = set()
 else:
@@ -3342,17 +3343,17 @@ else:
 async def pm_antispam_handler(client, message):
     user_id = message.from_user.id
 
-    # Bypass for approved users
+    # Skip check for approved users
     if user_id in approved_users:
         return
 
-    # Count every message (text, sticker, photo, etc.)
+    # Ignore service/system messages (very rare in PM)
+    if getattr(message, "service", False):
+        return
+
+    # Every message, including text, media, sticker increments count
     n = pm_unapproved_count.get(user_id, 0) + 1
     pm_unapproved_count[user_id] = n
-
-    # Ignore service/system messages (very rare in PM but good to check)
-    if message.service:
-        return
 
     if n <= 4:
         await message.reply_text(
@@ -3369,6 +3370,7 @@ async def pm_antispam_handler(client, message):
         except Exception:
             pass
         pm_unapproved_count.pop(user_id, None)
+
 
 @app.on_message(filters.command("approve", prefixes=".") & filters.me)
 async def approve_userpm(client, message):
@@ -3403,14 +3405,7 @@ async def disapprove_userpm(client, message):
         await message.edit_text(f"❌ Disapproved `{uid}`. Will be warned/blocked if PM protection active.")
     else:
         await message.edit_text("User is not approved.")
-
-@app.on_message(filters.command("approved", prefixes=".") & filters.me)
-async def list_approved_pm(client, message):
-    if not approved_users:
-        await message.edit_text("No approved users.")
-    else:
-        await message.edit_text("Approved Users:\n" + "\n".join([str(u) for u in approved_users]))
-        save_data()        
+        
 
 
 
