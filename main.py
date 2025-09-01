@@ -3331,33 +3331,34 @@ async def private_welcome_toggle(client: Client, message: Message):
 async def private_dm_welcome(client: Client, message: Message):
     global private_we
 
-# Add at the global variable area (if not already defined)
-pm_message_count = {}   # user_id: message count
 
+# Place this in your globals area
+pm_unapproved_count = {}   # user_id: total DM messages sent
+if 'approved_users' not in user_data:
+    user_data['approved_users'] = []
+
+# ----- PM PROTECTION HANDLER -----
 @app.on_message(filters.private & ~filters.me)
-async def pm_protection_handler(client: Client, message: Message):
+async def pm_antispam_handler(client: Client, message: Message):
     user_id = message.from_user.id
 
-    # If user is approved, do not warn or block
-    if 'approved_users' in user_data:
-        if user_id in user_data['approved_users']:
-            return
-    else:
-        user_data['approved_users'] = []
+    # If the user is approved, bypass all protections
+    approved = user_id in user_data['approved_users']
 
-    # Count the user's PM messages
-    current_count = pm_message_count.get(user_id, 0) + 1
-    pm_message_count[user_id] = current_count
+    if approved:
+        return
 
-    if current_count <= 4:
-        # Always warn with the updated count
+    # Increase counter for this user
+    count = pm_unapproved_count.get(user_id, 0) + 1
+    pm_unapproved_count[user_id] = count
+
+    if count <= 4:
         await message.reply_text(
-            f"⚠️ You have sent {current_count} message(s) without approval.\n"
-            f"Please wait for approval or you will be blocked after 4 messages.\n"
-            f"Send .approve command or wait for approval."
+            f"⚠️ You have sent {count} message(s) without approval.\n"
+            "Please wait for approval or you will be blocked after 4 messages.\n"
+            "Send .approve command or wait for approval."
         )
-    elif current_count == 5:
-        # Send block message then block user
+    elif count == 5:
         await message.reply_text(
             "🚫 You are blocked. Reason: spam (Exceeded 4 messages without approval.)"
         )
@@ -3365,52 +3366,57 @@ async def pm_protection_handler(client: Client, message: Message):
             await client.block_user(user_id)
         except Exception:
             pass
-        # Remove counter for this user after block
-        pm_message_count.pop(user_id, None)
-
+        pm_unapproved_count.pop(user_id, None)  # Cleanup after block
+        
+        save_data()
+# APPROVE COMMAND
 @app.on_message(filters.command("approve", prefixes=".") & filters.me)
 async def approve_pm(client: Client, message: Message):
-    # Approve by reply or user id
     if message.reply_to_message:
         approve_id = message.reply_to_message.from_user.id
     elif len(message.command) > 1:
         try:
             approve_id = int(message.command[1])
-        except:
+        except Exception: 
             return await message.edit_text("❌ Invalid user ID.")
     else:
-        return await message.edit_text("Usage: `.approve [user_id]` or reply to a message.")
-
-    if 'approved_users' not in user_data:
-        user_data['approved_users'] = []
+        return await message.edit_text("Usage: `.approve [user_id]` or reply to user's message.")
     if approve_id not in user_data['approved_users']:
         user_data['approved_users'].append(approve_id)
-        pm_message_count.pop(approve_id, None)
+        pm_unapproved_count.pop(approve_id, None)
         save_data()
-        await message.edit_text(f"✅ Approved {approve_id} for PMs (no more warnings or blocks).")
+        await message.edit_text(f"✅ Approved `{approve_id}`. They will no longer receive warnings/blocks.")
     else:
         await message.edit_text(f"User {approve_id} is already approved.")
 
+# DISAPPROVE COMMAND
 @app.on_message(filters.command("disapprove", prefixes=".") & filters.me)
 async def disapprove_pm(client: Client, message: Message):
-    # Disapprove by reply or user id
     if message.reply_to_message:
         disapprove_id = message.reply_to_message.from_user.id
     elif len(message.command) > 1:
         try:
             disapprove_id = int(message.command[1])
-        except:
+        except Exception: 
             return await message.edit_text("❌ Invalid user ID.")
     else:
-        return await message.edit_text("Usage: `.disapprove [user_id]` or reply to a message.")
+        return await message.edit_text("Usage: `.disapprove [user_id]` or reply to user's message.")
 
-    if 'approved_users' in user_data and disapprove_id in user_data['approved_users']:
+    if disapprove_id in user_data['approved_users']:
         user_data['approved_users'].remove(disapprove_id)
         save_data()
-        await message.edit_text(f"❌ Disapproved {disapprove_id} for PMs (now gets warnings again).")
+        await message.edit_text(f"❌ Disapproved `{disapprove_id}`. Now gets warnings/blocks again.")
     else:
-        await message.edit_text("User is not approved.")
+        await message.edit_text("User was not approved.")
 
+# Optional: List approved users
+@app.on_message(filters.command("approved", prefixes=".") & filters.me)
+async def approved_list(client: Client, message: Message):
+    if not user_data['approved_users']:
+        await message.edit_text("No approved users.")
+        return
+    await message.edit_text("✅ Approved users:\n" + "\n".join(str(u) for u in user_data['approved_users']))
+    
 
 @app.on_message(filters.command("goodbye", prefixes=".") & filters.me)
 async def set_goodbye_message(client: Client, message: Message):
