@@ -3336,6 +3336,12 @@ async def private_dm_welcome(client: Client, message: Message):
 pm_unapproved_count = {}  # {user_id: count}
 approved_users = set()    # approved users ka set
 
+# spam words list (case-insensitive)
+SPAM_WORDS = [
+    "hi", "hii", "hiii", "hiiii", "hello", "hey", "who",
+    "how are you", "he", "hell", "ji", "?"
+]
+
 @app.on_message(filters.private & ~filters.me)
 async def pm_antispam_handler(client, message):
     user_id = message.from_user.id
@@ -3344,11 +3350,27 @@ async def pm_antispam_handler(client, message):
     if user_id in approved_users:
         return
 
+    text = (message.text or "").lower().strip()
+
+    # Check karo agar spam word bheja ya koi bhi text bheja ya media bheja
+    is_spam_trigger = False
+    if text:  # agar text hai
+        for w in SPAM_WORDS:
+            if w in text:  # spam word match
+                is_spam_trigger = True
+                break
+        if not is_spam_trigger:
+            is_spam_trigger = True  # any text counts
+    else:
+        is_spam_trigger = True  # media/sticker/file bhi count hoga
+
+    if not is_spam_trigger:
+        return
+
     # Message count badhao
     count = pm_unapproved_count.get(user_id, 0) + 1
     pm_unapproved_count[user_id] = count
 
-    # Agar 4 ya usse kam message bheje
     if count <= 4:
         await message.reply_text(
             f"⚠️ Warning {count}/4\n"
@@ -3357,7 +3379,6 @@ async def pm_antispam_handler(client, message):
             "Send .approve command (by me) to get approval."
         )
     else:
-        # 5th msg par block
         await message.reply_text(
             "🚫 You are blocked.\nReason: Spam (Exceeded 4 unapproved messages.)"
         )
@@ -3365,7 +3386,6 @@ async def pm_antispam_handler(client, message):
             await client.block_user(user_id)
         except Exception:
             pass
-        # List se hata do taki dobara msg count na ho
         pm_unapproved_count.pop(user_id, None)
 
 
@@ -3383,7 +3403,7 @@ async def approve_userpm(client, message):
         return await message.edit_text("Usage: `.approve [user_id]` or reply to a user's message.")
 
     approved_users.add(uid)
-    pm_unapproved_count.pop(uid, None)  # unapproved counter reset
+    pm_unapproved_count.pop(uid, None)
     await message.edit_text(f"✅ Approved `{uid}`. Now they can DM freely.")
 
 
@@ -3402,7 +3422,7 @@ async def disapprove_userpm(client, message):
 
     if uid in approved_users:
         approved_users.remove(uid)
-        pm_unapproved_count[uid] = 0  # reset counter
+        pm_unapproved_count[uid] = 0
         await message.edit_text(f"❌ Disapproved `{uid}`. They will be blocked after 4 messages if spammed.")
     else:
         await message.edit_text("User is not approved.")
