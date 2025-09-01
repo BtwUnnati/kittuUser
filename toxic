@@ -1,3 +1,10 @@
+#!/bin/bash
+
+# Run main.py in the background
 python3 main.py &
-python3 app.py
+
+# Run app.py in the background
+python3 app.py &
+
+# Wait for both background processes to complete
 wait
