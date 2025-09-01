@@ -3341,7 +3341,77 @@ async def private_dm_welcome(client: Client, message: Message):
             private_welcomed_users.add(user_id)
         except Exception:
             pass  # ignore failures
-            
+
+# Private message spam control globals
+dm_message_counts = {}        # Tracks number of messages a user sent in PM without approval
+approved_users = set()         # Set of user IDs approved to PM without restrictions
+dm_warning_sent = set()        # Users who already received the warning message
+
+
+@app.on_message(filters.private & ~filters.me)
+async def private_dm_spam_control(client: Client, message: Message):
+    user_id = message.from_user.id
+
+    # If user approved, allow unlimited messages
+    if user_id in approved_users:
+        return
+
+    # Initialize count if new user session
+    count = dm_message_counts.get(user_id, 0) + 1
+    dm_message_counts[user_id] = count
+
+    # Send welcome + warning on first message only
+    if count == 1 and user_id not in dm_warning_sent:
+        welcome_text = (
+            f"Hello! 👋\n"
+            f"This is a Kittu Assistant.\n"
+            f"Please note: Sending more than 4 messages without approval "
+            f"will get you blocked automatically.\n"
+            f"Wait for approval or use the `.approve` command if you have permissions."
+        )
+        await message.reply_text(welcome_text)
+        dm_warning_sent.add(user_id)
+        return
+
+    # If user exceeded 4 messages without approval, block and notify
+    if count > 4:
+        try:
+            await client.block_user(user_id)
+            await message.reply_text(f"⚠️ You have been blocked for spamming (sending more than 4 messages without approval).")
+            # Clean up counts to save memory
+            dm_message_counts.pop(user_id, None)
+            dm_warning_sent.discard(user_id)
+        except Exception:
+            pass
+        return
+
+@app.on_message(filters.command("approve", prefixes=".") & filters.me)
+async def approve_user(client: Client, message: Message):
+    # Approve a user to prevent blocking
+    user_id = None
+
+    # Approve by reply or by user_id argument
+    if message.reply_to_message:
+        user_id = message.reply_to_message.from_user.id
+    elif len(message.command) > 1:
+        try:
+            user_id = int(message.command[1])
+        except ValueError:
+            await message.edit_text("❌ Invalid user ID.")
+            return
+    else:
+        return await message.edit_text("Usage: .approve [user_id] or reply to a user's message.")
+
+    # Add to approved users
+    approved_users.add(user_id)
+    # Reset counts and warnings for that user
+    dm_message_counts.pop(user_id, None)
+    dm_warning_sent.discard(user_id)
+
+    await message.edit_text(f"✅ User `{user_id}` has been approved. They can now send unlimited messages without being blocked.")
+
+    save_data()
+
 
 @app.on_message(filters.command("goodbye", prefixes=".") & filters.me)
 async def set_goodbye_message(client: Client, message: Message):
