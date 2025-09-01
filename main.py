@@ -54,10 +54,6 @@ from pyrogram.raw.types import (
 from pyrogram.raw.functions.account import UpdateProfile, UpdateUsername
 from pyrogram.raw.functions.channels import EditTitle
 from pyrogram.raw.functions.phone import CreateGroupCall
-from collections import defaultdict
-
-# Track greeted users per chat to avoid multiple welcomes
-greeted_users = defaultdict(set)
 
 from config import API_ID, API_HASH, SESSION_STRING, UNPLASH_API as api_key
 
