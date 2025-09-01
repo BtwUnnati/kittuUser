@@ -3334,62 +3334,51 @@ async def private_dm_welcome(client: Client, message: Message):
 
 
 pm_unapproved_count = {}  # {user_id: count}
-approved_users = set()    # approved users ka set
+approved_users = set()
 
-# spam words list (case-insensitive)
 SPAM_WORDS = [
     "hi", "hii", "hiii", "hiiii", "hello", "hey", "who",
-    "how are you", "he", "hell", "ji", "?"
+    "how are you", "he", "hell", "ji", "?", "!"
 ]
 
 @app.on_message(filters.private & ~filters.me)
 async def pm_antispam_handler(client, message):
     user_id = message.from_user.id
 
-    # Agar already approved hai to kuch mat karo
     if user_id in approved_users:
         return
 
-    text = (message.text or "").lower().strip()
+    text = (message.text or "").lower().strip() if message.text else ""
 
-    # Check karo agar spam word bheja ya koi bhi text bheja ya media bheja
-    is_spam_trigger = False
-    if text:  # agar text hai
-        for w in SPAM_WORDS:
-            if w in text:  # spam word match
-                is_spam_trigger = True
-                break
-        if not is_spam_trigger:
-            is_spam_trigger = True  # any text counts
-    else:
-        is_spam_trigger = True  # media/sticker/file bhi count hoga
+    # Count trigger: agar koi bhi text ho OR koi bhi media ho
+    if text or message.media:
+        # (Optional: spam words check, but any text bhi count karega)
+        if text and any(w in text for w in SPAM_WORDS):
+            pass  # matched spam word, but count waise bhi hoga
 
-    if not is_spam_trigger:
-        return
+        # Increase message count
+        count = pm_unapproved_count.get(user_id, 0) + 1
+        pm_unapproved_count[user_id] = count
 
-    # Message count badhao
-    count = pm_unapproved_count.get(user_id, 0) + 1
-    pm_unapproved_count[user_id] = count
-
-    if count <= 4:
-        await message.reply_text(
-            f"⚠️ Warning {count}/4\n"
-            "You are not approved yet.\n"
-            "Please wait for approval otherwise you will be blocked after 4 messages.\n"
-            "Send .approve command (by me) to get approval."
-        )
-    else:
-        await message.reply_text(
-            "🚫 You are blocked.\nReason: Spam (Exceeded 4 unapproved messages.)"
-        )
-        try:
-            await client.block_user(user_id)
-        except Exception:
-            pass
-        pm_unapproved_count.pop(user_id, None)
+        if count <= 4:
+            await message.reply_text(
+                f"⚠️ Warning {count}/4\n"
+                "You are not approved yet.\n"
+                "Please wait for approval otherwise you will be blocked after 4 messages.\n"
+                "Send .approve command (by me) to get approval."
+            )
+        else:
+            await message.reply_text(
+                "🚫 You are blocked.\nReason: Spam (Exceeded 4 unapproved messages.)"
+            )
+            try:
+                await client.block_user(user_id)
+            except Exception:
+                pass
+            pm_unapproved_count.pop(user_id, None)
 
 
-# .approve command
+# .approve
 @app.on_message(filters.command("approve", prefixes=".") & filters.me)
 async def approve_userpm(client, message):
     if message.reply_to_message:
@@ -3407,7 +3396,7 @@ async def approve_userpm(client, message):
     await message.edit_text(f"✅ Approved `{uid}`. Now they can DM freely.")
 
 
-# .disapprove command
+# .disapprove
 @app.on_message(filters.command("disapprove", prefixes=".") & filters.me)
 async def disapprove_userpm(client, message):
     if message.reply_to_message:
