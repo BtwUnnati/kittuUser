@@ -240,7 +240,7 @@
 
 1st. **Clone and setup**
    ```bash
-   git clone https://github.com/BtwUnnati/user && cd user
+   git clone https://github.com/BtwUnnati/kittuUser && cd kittuUser
    
    pip3 install -r requirements.txt
    ```
